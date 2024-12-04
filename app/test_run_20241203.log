@@ -1,0 +1,23 @@
+2024-12-03 21:20:45,153 - INFO - Starting test execution...
+2024-12-03 21:20:45,153 - INFO - Cleaning previous test results...
+2024-12-03 21:20:45,168 - INFO - Running unit tests with coverage...
+2024-12-03 21:20:45,724 - INFO - HTTP Request: GET http://testserver/ "HTTP/1.1 200 OK"
+2024-12-03 21:20:45,726 - INFO - HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2024-12-03 21:20:45,740 - INFO - Successfully retrieved 3 concerts
+2024-12-03 21:20:45,741 - INFO - HTTP Request: GET http://testserver/concerts "HTTP/1.1 200 OK"
+2024-12-03 21:20:45,750 - INFO - HTTP Request: POST http://testserver/tickets/reserve "HTTP/1.1 200 OK"
+2024-12-03 21:20:45,753 - INFO - Successfully confirmed ticket 1
+2024-12-03 21:20:45,754 - INFO - HTTP Request: POST http://testserver/tickets/confirm/1?user_id=3 "HTTP/1.1 200 OK"
+2024-12-03 21:20:45,758 - INFO - HTTP Request: POST http://testserver/tickets/book "HTTP/1.1 200 OK"
+2024-12-03 21:20:45,761 - INFO - Successfully cancelled ticket 3
+2024-12-03 21:20:45,761 - INFO - HTTP Request: POST http://testserver/tickets/cancel/3?user_id=3 "HTTP/1.1 200 OK"
+2024-12-03 21:20:45,764 - INFO - Successfully retrieved 2 concerts
+2024-12-03 21:20:45,764 - INFO - HTTP Request: GET http://testserver/concerts?genre=Rock "HTTP/1.1 200 OK"
+2024-12-03 21:20:45,766 - INFO - Successfully retrieved 3 concerts
+2024-12-03 21:20:45,766 - INFO - HTTP Request: GET http://testserver/concerts?min_price=40.0 "HTTP/1.1 200 OK"
+2024-12-03 21:20:45,771 - INFO - Running JMeter performance tests...
+2024-12-03 21:20:53,471 - ERROR - Error during test execution: cannot import name 'calculate_metrics' from 'calculate_metrics' (/Users/kaloslazo/CompHub/ExamenFinalSoftware/app/calculate_metrics.py)
+2024-12-03 21:24:37,809 - INFO - Starting test execution...
+2024-12-03 21:24:37,810 - INFO - Cleaning previous test results...
+2024-12-03 21:24:37,822 - INFO - Running unit tests with coverage...
+2024-12-03 21:24:37,844 - ERROR - Error during test execution: No module named 'coverage.results'; 'coverage' is not a package
