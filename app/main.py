@@ -22,6 +22,9 @@ class TicketResponse(BaseModel):
     amount: float
     seat_type: str
     booking_time: datetime
+    
+class ErrorResponse(BaseModel):
+    detail: str
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -85,14 +88,81 @@ class ReservationRequest(BaseModel):
     quantity: int
     seat_type: str
 
-@app.post("/tickets/reserve")
+@app.post("/tickets/reserve", 
+    response_model=dict,
+    responses={
+        404: {
+            "model": ErrorResponse,
+            "description": "Concert Not Found",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "concert_not_found": {
+                            "summary": "Concert Does Not Exist",
+                            "value": {
+                                "detail": "Concert not found",
+                                "error_code": "CONCERT_NOT_FOUND"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        400: {
+            "model": ErrorResponse,
+            "description": "Bad Request - Validation Error",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "concert_passed": {
+                            "summary": "Concert Already Occurred",
+                            "value": {
+                                "detail": "Concert has already taken place",
+                                "error_code": "CONCERT_EXPIRED"
+                            }
+                        },
+                        "insufficient_tickets": {
+                            "summary": "Insufficient Ticket Availability",
+                            "value": {
+                                "detail": "Not enough tickets available",
+                                "error_code": "INSUFFICIENT_TICKETS"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        500: {
+            "model": ErrorResponse,
+            "description": "Internal Server Error",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "reservation_error": {
+                            "summary": "Ticket Reservation Failed",
+                            "value": {
+                                "detail": "Error reserving tickets",
+                                "error_code": "RESERVATION_FAILED"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
 async def reserve_ticket(
     reservation_request: ReservationRequest,
     db: Session = Depends(get_db)
 ):
     """
     Reserve tickets for a concert with a temporary hold.
+    
     Reservations expire after 15 minutes if not confirmed.
+    
+    Possible Errors:
+    - 404: Concert not found
+    - 400: Concert already passed or insufficient tickets
+    - 500: Internal server error during reservation
     """
     try:
         start_time = datetime.now()
