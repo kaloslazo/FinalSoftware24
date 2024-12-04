@@ -120,7 +120,7 @@ async def reserve_ticket(
             )
             
         # Create temporary reservation records
-        reservations = []
+        tickets = []
         reservation_expiry = datetime.now() + timedelta(minutes=15)
         
         for _ in range(reservation_request.quantity):
@@ -128,30 +128,35 @@ async def reserve_ticket(
                 concert_id=concert.id,
                 user_id=reservation_request.user_id,
                 seat_type=reservation_request.seat_type,
-                status=TICKET_STATUS["RESERVED"],
+                status="RESERVED",
                 amount=get_ticket_price(concert, reservation_request.seat_type),
                 booking_time=datetime.now(),
-                reservation_expiry=reservation_expiry  # New field you'll need to add to Ticket model
+                reservation_expiry=reservation_expiry
             )
             db.add(ticket)
-            reservations.append(ticket)
+            tickets.append(ticket)
             
         db.commit()
         
-        # Clear availability cache
-        clear_availability_cache(concert.id)
+        # Transform tickets to response format
+        ticket_responses = [
+            {
+                "ticket_id": t.id,
+                "concert_id": t.concert_id,
+                "user_id": t.user_id,
+                "status": t.status,
+                "amount": t.amount,
+                "seat_type": t.seat_type,
+                "booking_time": t.booking_time,
+                "reservation_expiry": t.reservation_expiry
+            }
+            for t in tickets
+        ]
         
-        # Update monitoring
-        service_monitor.record_request(
-            duration=(datetime.now() - start_time).total_seconds(),
-            success=True
-        )
-        
-        logging.info(f"Successfully reserved {len(reservations)} tickets for concert {concert.id}")
         return {
             "message": "Tickets reserved successfully",
             "reservation_details": {
-                "tickets": reservations,
+                "tickets": ticket_responses,
                 "expires_at": reservation_expiry,
                 "payment_required_by": reservation_expiry.isoformat()
             }
@@ -162,10 +167,6 @@ async def reserve_ticket(
     except Exception as e:
         db.rollback()
         logging.error(f"Error reserving tickets: {str(e)}")
-        service_monitor.record_request(
-            duration=(datetime.now() - start_time).total_seconds(),
-            success=False
-        )
         raise HTTPException(status_code=500, detail="Error reserving tickets")
     finally:
         db.close()

@@ -1,3 +1,5 @@
+from typing import Optional
+from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
@@ -57,6 +59,21 @@ class Ticket(Base):
     
     concert = relationship("Concert", back_populates="tickets")
     user = relationship("UserProfile", back_populates="tickets")
+
+class TicketResponse(BaseModel):
+    ticket_id: int
+    concert_id: int
+    user_id: int
+    status: str
+    amount: float
+    seat_type: str
+    booking_time: datetime
+    reservation_expiry: Optional[datetime] = None
+
+class ReservationResponse(BaseModel):
+    message: str
+    reservation_details: dict
+
 
 class UserProfile(Base):
     __tablename__ = "users"
