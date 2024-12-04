@@ -331,30 +331,24 @@ async def book_ticket(
             
         db.commit()
         
-        # Clear availability cache
-        clear_availability_cache(concert.id)
+        ticket_responses = [
+            {
+                "ticket_id": t.id,
+                "concert_id": t.concert_id,
+                "user_id": t.user_id,
+                "status": t.status,
+                "amount": t.amount,
+                "seat_type": t.seat_type,
+                "booking_time": t.booking_time
+            }
+            for t in tickets
+        ]
         
-        # Update monitoring
-        service_monitor.record_request(
-            duration=(datetime.now() - start_time).total_seconds(),
-            success=True
-        )
+        return ticket_responses
         
-        logging.info(f"Successfully booked {len(tickets)} tickets for concert {concert.id}")
-        return tickets
-        
-    except HTTPException as he:
-        raise he
     except Exception as e:
         db.rollback()
-        logging.error(f"Error booking tickets: {str(e)}")
-        service_monitor.record_request(
-            duration=(datetime.now() - start_time).total_seconds(),
-            success=False
-        )
-        raise HTTPException(status_code=500, detail="Error booking tickets")
-    finally:
-        db.close()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/tickets/cancel/{ticket_id}")
 async def cancel_ticket(

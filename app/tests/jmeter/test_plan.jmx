@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0">
+    <hashTree>
+        <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Concert API Test Plan">
+            <elementProp name="TestPlan.user_defined_variables" elementType="Arguments">
+                <collectionProp name="Arguments.arguments" />
+            </elementProp>
+            <stringProp name="TestPlan.comments"></stringProp>
+            <boolProp name="TestPlan.functional_mode">false</boolProp>
+            <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+            <stringProp name="TestPlan.user_define_classpath"></stringProp>
+        </TestPlan>
+        <hashTree>
+            <!-- Thread Group for Concert Listing -->
+            <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup"
+                testname="Concert Listing Load Test">
+                <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+                    <boolProp name="LoopController.continue_forever">false</boolProp>
+                    <intProp name="LoopController.loops">100</intProp>
+                </elementProp>
+                <intProp name="ThreadGroup.num_threads">50</intProp>
+                <intProp name="ThreadGroup.ramp_time">10</intProp>
+                <HTTP guiclass="HttpTestSampleGui" testclass="HTTP" testname="List Concerts">
+                    <stringProp name="HTTPSampler.path">/concerts</stringProp>
+                    <stringProp name="HTTPSampler.method">GET</stringProp>
+                </HTTP>
+            </ThreadGroup>
+
+            <!-- Thread Group for Ticket Reservations -->
+            <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup"
+                testname="Ticket Reservation Load Test">
+                <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+                    <boolProp name="LoopController.continue_forever">false</boolProp>
+                    <intProp name="LoopController.loops">50</intProp>
+                </elementProp>
+                <intProp name="ThreadGroup.num_threads">20</intProp>
+                <intProp name="ThreadGroup.ramp_time">5</intProp>
+                <HTTP guiclass="HttpTestSampleGui" testclass="HTTP" testname="Reserve Tickets">
+                    <stringProp name="HTTPSampler.path">/tickets/reserve</stringProp>
+                    <stringProp name="HTTPSampler.method">POST</stringProp>
+                    <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+                    <stringProp name="HTTPSampler.requestBody">
+                        {
+                        "concert_id": ${__Random(1,5)},
+                        "user_id": ${__Random(1,100)},
+                        "quantity": ${__Random(1,4)},
+                        "seat_type": "${__RandomFromMultiple(GENERAL|VIP|BACKSTAGE)}"
+                        }
+                    </stringProp>
+                    <stringProp name="HTTPSampler.contentEncoding">application/json</stringProp>
+                </HTTP>
+            </ThreadGroup>
+
+            <!-- Response Assertions -->
+            <ResponseAssertion guiclass="ResponseAssertionGui" testclass="ResponseAssertion">
+                <collectionProp name="Asserion.test_strings">
+                    <stringProp>200</stringProp>
+                </collectionProp>
+                <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+                <intProp name="Assertion.test_type">8</intProp>
+            </ResponseAssertion>
+
+            <!-- Performance Requirements -->
+            <DurationAssertion guiclass="DurationAssertionGui" testclass="DurationAssertion">
+                <stringProp name="DurationAssertion.duration">1000</stringProp>
+            </DurationAssertion>
+        </hashTree>
+    </hashTree>
+</jmeterTestPlan>

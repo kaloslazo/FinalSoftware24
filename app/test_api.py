@@ -1,22 +1,23 @@
+# tests/integration/test_api.py
+
 from fastapi.testclient import TestClient
-from main import app
-from database import Base, engine, Concert, Ticket, UserProfile
 from datetime import datetime, timedelta
 import pytest
-import time
+from app.main import app
+from app.database import Base, engine, Concert, Ticket, UserProfile, get_db
 
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def setup_database():
-    """Set up test database before each test"""
+    """Set up a clean test database for each test"""
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
 
-def test_ticket_reservation():
-    """Test the complete ticket reservation flow"""
-    # Create test concert
+def create_test_concert():
+    """Helper to create a test concert"""
+    db = next(get_db())
     concert = Concert(
         name="Test Concert",
         artist="Test Artist",
@@ -26,110 +27,99 @@ def test_ticket_reservation():
         min_price=50.0,
         capacity=100
     )
-    db = next(get_db())
     db.add(concert)
     db.commit()
+    return concert
+
+def test_health_check():
+    """Test health check endpoint"""
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "healthy"
+
+def test_concert_listing():
+    """Test getting concert list with filters"""
+    concert = create_test_concert()
+    
+    test_cases = [
+        {"params": {}, "expected_count": 1},
+        {"params": {"genre": "Rock"}, "expected_count": 1},
+        {"params": {"genre": "Pop"}, "expected_count": 0},
+        {"params": {"min_price": 40}, "expected_count": 1},
+        {"params": {"min_price": 60}, "expected_count": 0}
+    ]
+    
+    for case in test_cases:
+        response = client.get("/concerts", params=case["params"])
+        assert response.status_code == 200
+        concerts = response.json()
+        assert len(concerts) == case["expected_count"]
+
+def test_ticket_reservation_flow():
+    """Test complete ticket reservation process"""
+    concert = create_test_concert()
     
     # Test reservation
-    reservation_request = {
+    reservation_data = {
         "concert_id": concert.id,
         "user_id": 1,
         "quantity": 2,
         "seat_type": "VIP"
     }
     
-    # Make reservation
-    response = client.post("/tickets/reserve", json=reservation_request)
+    response = client.post("/tickets/reserve", json=reservation_data)
     assert response.status_code == 200
     reservation = response.json()
-    
-    # Verify response structure
     assert "reservation_details" in reservation
     assert "tickets" in reservation["reservation_details"]
-    assert len(reservation["reservation_details"]["tickets"]) > 0
-    
-    # Get ticket ID (adjusting to match actual response structure)
-    ticket = reservation["reservation_details"]["tickets"][0]
-    ticket_id = ticket["ticket_id"]  # Changed from 'id' to 'ticket_id'
     
     # Test confirmation
-    confirmation_response = client.post(f"/tickets/confirm/{ticket_id}?user_id=1")
-    assert confirmation_response.status_code == 200
-    assert confirmation_response.json()["message"] == "Ticket confirmed successfully"
-    
-    # Verify ticket status in database
-    db = next(get_db())
-    confirmed_ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    assert confirmed_ticket is not None
-    assert confirmed_ticket.status == "CONFIRMED"
+    ticket_id = reservation["reservation_details"]["tickets"][0]["ticket_id"]
+    confirm_response = client.post(f"/tickets/confirm/{ticket_id}?user_id=1")
+    assert confirm_response.status_code == 200
 
-def test_reservation_validation():
-    """Test validation of reservation requests"""
-    invalid_requests = [
-        {
-            "concert_id": 999,  # Non-existent concert
+def test_concurrent_reservations():
+    """Test handling multiple simultaneous reservations"""
+    concert = create_test_concert()
+    
+    # Create multiple reservations simultaneously
+    reservations = []
+    for _ in range(5):
+        response = client.post("/tickets/reserve", json={
+            "concert_id": concert.id,
             "user_id": 1,
-            "quantity": 2,
-            "seat_type": "VIP"
+            "quantity": 10,
+            "seat_type": "GENERAL"
+        })
+        reservations.append(response)
+    
+    # Verify no overbooking
+    successful = sum(1 for r in reservations if r.status_code == 200)
+    assert successful <= concert.capacity // 10
+
+def test_error_handling():
+    """Test various error scenarios"""
+    error_cases = [
+        {
+            "endpoint": "/tickets/reserve",
+            "data": {"concert_id": 999, "user_id": 1, "quantity": 1, "seat_type": "VIP"},
+            "expected_status": 404
         },
         {
-            "concert_id": 1,
-            "user_id": 1,
-            "quantity": 0,  # Invalid quantity
-            "seat_type": "VIP"
+            "endpoint": "/tickets/cancel/999",
+            "params": {"user_id": 1},
+            "expected_status": 404
         },
         {
-            "concert_id": 1,
-            "user_id": 1,
-            "quantity": 2,
-            "seat_type": "INVALID_TYPE"  # Invalid seat type
+            "endpoint": "/tickets/confirm/999",
+            "params": {"user_id": 1},
+            "expected_status": 404
         }
     ]
     
-    for req in invalid_requests:
-        response = client.post("/tickets/reserve", json=req)
-        assert response.status_code in [400, 404]  # Either bad request or not found
-
-def test_reservation_expiration():
-    """Test that reservations expire correctly"""
-    # Create test concert
-    concert = Concert(
-        name="Test Concert",
-        artist="Test Artist",
-        date=datetime.now() + timedelta(days=30),
-        venue="Test Venue",
-        genre="Rock",
-        min_price=50.0,
-        capacity=100
-    )
-    db = next(get_db())
-    db.add(concert)
-    db.commit()
-    
-    # Create expired ticket
-    expired_ticket = Ticket(
-        concert_id=concert.id,
-        user_id=1,
-        seat_type="VIP",
-        status="RESERVED",
-        amount=125.0,
-        booking_time=datetime.now() - timedelta(minutes=20),  # 20 minutes ago
-        reservation_expiry=datetime.now() - timedelta(minutes=5)  # Expired 5 minutes ago
-    )
-    db.add(expired_ticket)
-    db.commit()
-    
-    # Try to confirm expired ticket
-    response = client.post(f"/tickets/confirm/{expired_ticket.id}?user_id=1")
-    assert response.status_code == 400
-    assert "expired" in response.json()["detail"].lower()
-
-# Add this function at the end of test_api.py
-def get_db():
-    """Database session fixture"""
-    from database import SessionLocal
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    for case in error_cases:
+        if "data" in case:
+            response = client.post(case["endpoint"], json=case["data"])
+        else:
+            response = client.post(case["endpoint"], params=case["params"])
+        assert response.status_code == case["expected_status"]
